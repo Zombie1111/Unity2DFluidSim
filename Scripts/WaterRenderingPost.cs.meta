@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: caf751892bff07a47a973a8a66fd5e58
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - waterPostShader: {fileID: 4800000, guid: ca906cc82f966fa49915a0fb1f53e896, type: 3}
+  - waterCam: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: e975821068ada14439493290b90437ee
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - waterCamera: {instanceID: 0}
+  - wPat_mesh: {fileID: 848120094904359517, guid: 1c863e5d813bcbb4dbee8f51f08d9910, type: 3}
+  - wPat_mat: {fileID: 2100000, guid: 8d9acbf89479b9b48a6ad9af08df56ab, type: 2}
+  - waterPatStartTrans: {instanceID: 0}
+  - waterPatEndTrans: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
