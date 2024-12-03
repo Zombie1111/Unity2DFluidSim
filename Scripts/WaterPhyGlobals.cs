@@ -6,6 +6,11 @@ using UnityEngine;
 
 namespace Zomb2DPhysics
 {
+    //#################Optional Scripting Define Symbols (ProjectSettings>Player>OtherSettings)################
+    //#########################################################################################################
+    //FLUID_NORBBUOYANCY //If defined waterColliders with rigidbodies wont get force from the fluid sim
+
+
     public static class WaterPhyGlobals
     {
         public const float waterRadius = 0.4f;//The radius of each waterParticel
@@ -28,6 +33,9 @@ namespace Zomb2DPhysics
         public const float SIGMA = 0.2f;  //Viscosity factor
         public const float MAX_VEL = 0.35f; //The maximum velocity a particle can have
 
+#if !FLUID_NORBBUOYANCY
+        public const float WALL_BUOYANCY = 200.0f;//How much force each particle can add to waterColliders that has a rigidbody (Very rough buoyancy)
+#endif
         public const float WALL_BOUNCENESS = 0.03f;//How much a particle "bounce" on walls
         public const float WALL_MINBOUNCEVEL = 0.1f;//The minimum velocity a particle can have when it bounce
     }

@@ -45,6 +45,22 @@ namespace Zomb2DPhysics
             };
         }
 
+#if !FLUID_NORBBUOYANCY
+        Rigidbody2D rb = null;
+
+        /// <summary>
+        /// Returns a rigidbody associated with this waterCollider, null if no valid rigidbody found (Only exists if FLUID_NORBBUOYANCY aint defiend)
+        /// </summary>
+        public Rigidbody2D TryGetWaterColRb()
+        {
+            if (rb != null) return rb;
+            if (TryGetComponent(out rb) == false) return null;
+
+            gameObject.AddComponent<WaterColliderBoxRb>();
+            return rb;
+        }
+#endif
+
         /// <summary>
         /// Tells the fluid simulation that the waterCollider has moved
         /// </summary>

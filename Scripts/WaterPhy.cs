@@ -25,6 +25,9 @@ namespace Zomb2DPhysics
         [Header("Water Spawn Config")]
         [SerializeField] private Transform waterPatStartTrans = null;
         [SerializeField] private Transform waterPatEndTrans = null;
+#if !FLUID_NORBBUOYANCY
+        private Rigidbody2D[] waterColsRb = null;
+#endif
         private WaterPatTick_work wpt_job;
         private JobHandle wpt_handle;
 
@@ -81,6 +84,10 @@ namespace Zomb2DPhysics
                 waterPatsWrite = new NativeArray<WaterPat>(WaterPhyGlobals.patCount, Allocator.Persistent),
                 waterPatPoss = new NativeArray<Vector2>(WaterPhyGlobals.patCount, Allocator.Persistent)
             };
+
+#if !FLUID_NORBBUOYANCY
+            waterColsRb = new Rigidbody2D[WaterPhyGlobals.maxWaterColliders];
+#endif
 
             //Create pat trans
             CreateWaterPats();
@@ -160,6 +167,11 @@ namespace Zomb2DPhysics
             public Vector2 dirForwardLenght;
             public Vector2 dirSideLenght;
             public bool isActive;
+
+#if !FLUID_NORBBUOYANCY
+            public Vector2 totalForcePos;
+            public int forceCount;
+#endif
         }
 
         #region Handle Water Colliders
@@ -214,6 +226,9 @@ namespace Zomb2DPhysics
                     waterCollider.wColIndex = emptyWaterColIndexs.FirstOrDefault();
                     emptyWaterColIndexs.Remove(waterCollider.wColIndex);
                     wpt_job.waterCols[waterCollider.wColIndex] = waterCollider.ToWaterCol();
+#if !FLUID_NORBBUOYANCY
+                    waterColsRb[waterCollider.wColIndex] = waterCollider.TryGetWaterColRb();
+#endif
                 }
                 else
                 {
@@ -275,8 +290,29 @@ namespace Zomb2DPhysics
             possBuf.SetData(wpt_job.waterPatPoss);
 
             //Update water colliders
+#if !FLUID_NORBBUOYANCY
+            UpdateWaterCollidersRigidbodies();
+#endif
             DoAddOrRemoveWaterColliders();
         }
+
+#if !FLUID_NORBBUOYANCY
+        /// <summary>
+        /// Updates rigidbodies buoyancy (Only exists if FLUID_NORBBUOYANCY is not defined)
+        /// </summary>
+        private void UpdateWaterCollidersRigidbodies()
+        {
+            for (int i = 0; i < WaterPhyGlobals.maxWaterColliders; i++)
+            {
+                if (waterColsRb[i] == null) continue;
+                var wCol = wpt_job.waterCols[i];
+                if (wCol.forceCount == 0 || wCol.isActive == false) continue;
+
+                Vector2 forcePos = wCol.totalForcePos / wCol.forceCount;
+                waterColsRb[i].AddForceAtPosition(WaterSimConfig.WALL_BUOYANCY * wCol.forceCount * (waterColsRb[i].position - forcePos).normalized, forcePos, ForceMode2D.Force);
+            }
+        }
+#endif
 
         #region RenderWaterPats
 
@@ -355,6 +391,16 @@ namespace Zomb2DPhysics
                 //The fluid simulation is based on Smoothed Particle Hydrodynamics (SPH) described by Brandon Pelfrey
                 //https://web.archive.org/web/20090722233436/http://blog.brandonpelfrey.com/?p=303
 
+#if !FLUID_NORBBUOYANCY
+                //Reset water colliders
+                for (int i = 0; i < WaterPhyGlobals.maxWaterColliders; i++)
+                {
+                    var wCol = waterCols[i];
+                    wCol.totalForcePos = Vector2.zero;
+                    wCol.forceCount = 0;
+                }
+#endif
+
                 //Get particle data
                 float self_speed;
 
@@ -381,8 +427,12 @@ namespace Zomb2DPhysics
                         Vector2 bestDir;
                         Vector2 newVelDir;
 
-                        foreach (WaterCol wCol in waterCols)
+                        //foreach (WaterCol wCol in waterCols)
+                        for (int ii = 0; ii < WaterPhyGlobals.maxWaterColliders; ii++)
                         {
+                            var wCol = waterCols[ii];
+                            if (wCol.isActive == false) continue;
+
                             //Reset ComputeSquare
                             bestIsInside = false;
                             bestDisSQR = float.MaxValue;
@@ -419,6 +469,12 @@ namespace Zomb2DPhysics
                                 //self_vel = (newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir)) * self_vel.magnitude;
                                 self_vel = ((newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir))//The bounce thing fixes particels stacking up next to walls
                                     - (bestDir / Math.Max(self_vel.magnitude, WaterSimConfig.WALL_MINBOUNCEVEL) * WaterSimConfig.WALL_BOUNCENESS)) * self_vel.magnitude;
+
+#if !FLUID_NORBBUOYANCY
+                                wCol.totalForcePos += self_pos;
+                                wCol.forceCount++;
+                                waterCols[ii] = wCol;
+#endif
                             }
                             else if (bestDisSQR < WaterPhyGlobals.waterRadiusSQR)
                             {
@@ -428,6 +484,12 @@ namespace Zomb2DPhysics
                                 //self_vel = (newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir)) * self_vel.magnitude;
                                 self_vel = ((newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir))//The bounce thing fixes particels stacking up next to walls
                                     - (bestDir / Math.Max(self_vel.magnitude, WaterSimConfig.WALL_MINBOUNCEVEL) * WaterSimConfig.WALL_BOUNCENESS)) * self_vel.magnitude;
+
+#if !FLUID_NORBBUOYANCY
+                                wCol.totalForcePos += self_pos;
+                                wCol.forceCount++;
+                                waterCols[ii] = wCol;
+#endif
                             }
                         }
 
