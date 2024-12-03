@@ -34,9 +34,9 @@ A fast 2D particle-based fluid simulation that does not use Unitys Rigidbodies o
 **General Setup**
 
 <ol>
-  <li>Download and copy the `_Demo`, `Materials` and `Scripts` folders into an empty folder inside your `Assets` directory</li>
-  <li>Create a new empty scene and add the prefab found at `_Demo/2DWaterSetup` to it</li>
-  <li>Create a Quad gameobject and add the `WaterColliderBox.cs` script to it, position the new gameobject so its visible in Game view</li>
+  <li>Download and copy the <code>_Demo</code>, <code>Materials</code> and <code>Scripts</code> folders into an empty folder inside your <code>Assets</code> directory</li>
+  <li>Create a new empty scene and add the prefab found at <code>_Demo/2DWaterSetup</code> to it</li>
+  <li>Create a Quad gameobject and add the <code>WaterColliderBox.cs</code> script to it, position the new gameobject so its visible in Game view</li>
   <li>Enter playmode and you should now have a 2D fluid simulation that can collide with the Quad</li>
 </ol>
 
