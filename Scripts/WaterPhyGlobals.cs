@@ -17,6 +17,7 @@ namespace Zomb2DPhysics
         public const float waterRadiusSQR = waterRadius * waterRadius;//Square of waterRadius
         public const int maxWaterColliders = 100;//Maximum number of active water colliders
         public const int patCount = 1000;//Number of water particels
+        public const float gridCellSize = 2.51f;//Size of cells in grid structure used to find neighbouring particle, should equal R * 2.0f + small margin
     }
 
     public static class WaterSimConfig

@@ -88,7 +88,8 @@ namespace Zomb2DPhysics
                 deltaTime = 1.0f,
                 waterCols = new NativeArray<WaterCol>(WaterPhyGlobals.maxWaterColliders, Allocator.Persistent),
                 waterPatsWrite = new NativeArray<WaterPat>(WaterPhyGlobals.patCount, Allocator.Persistent),
-                waterPatPoss = new NativeArray<Vector2>(WaterPhyGlobals.patCount, Allocator.Persistent)
+                waterPatPoss = new NativeArray<Vector2>(WaterPhyGlobals.patCount, Allocator.Persistent),
+                cellIdToPatIndex = new(WaterPhyGlobals.patCount / 2, Allocator.Persistent)
             };
 
 #if !FLUID_NORBBUOYANCY
@@ -166,6 +167,7 @@ namespace Zomb2DPhysics
             if (wpt_job.waterPatsWrite.IsCreated == true) wpt_job.waterPatsWrite.Dispose();
             if (wpt_job.waterCols.IsCreated == true) wpt_job.waterCols.Dispose();
             if (wpt_job.waterPatPoss.IsCreated == true) wpt_job.waterPatPoss.Dispose();
+            if (wpt_job.cellIdToPatIndex.IsCreated == true) wpt_job.cellIdToPatIndex.Dispose();
             if (commandBuf.IsValid() == true)
             {
                 commandBuf.Release();
@@ -277,7 +279,7 @@ namespace Zomb2DPhysics
             public float rho_near;
             public float press;
             public float press_near;
-            public FixedList512Bytes<short> neighbours;
+            public FixedList128Bytes<short> neighbours;
             public Vector2 vel;
             public Vector2 force;
             public float speed;
@@ -413,6 +415,7 @@ namespace Zomb2DPhysics
             public NativeArray<WaterCol> waterCols;
             public NativeArray<WaterPat> waterPatsWrite;
             public NativeArray<Vector2> waterPatPoss;
+            public NativeHashMap<Vector2Int, FixedList128Bytes<short>> cellIdToPatIndex;//Change FixedList128Bytes to FixedList512Bytes if list too small
 
             public void Execute()
             {
@@ -430,9 +433,11 @@ namespace Zomb2DPhysics
 #endif
 
                 //Get particle data
+                cellIdToPatIndex.Clear();
                 float self_speed;
+                Vector2Int cellI = new();
 
-                for (int i = 0; i < WaterPhyGlobals.patCount; i++)
+                for (short i = 0; i < WaterPhyGlobals.patCount; i++)
                 {
                     var p = waterPatsWrite[i];
 
@@ -565,6 +570,23 @@ namespace Zomb2DPhysics
                         self_vel = self_vel.normalized * WaterSimConfig.MAX_VEL;
                     }
 
+                    //Grid structure
+                    cellI.x = (int)(self_pos.x / WaterPhyGlobals.gridCellSize);
+                    cellI.y = (int)(self_pos.y / WaterPhyGlobals.gridCellSize);
+
+                    if (cellIdToPatIndex.TryGetValue(cellI, out var List) == false)
+                    {
+                        List.Add(i);
+                        cellIdToPatIndex.Add(cellI, List);
+
+                    }
+                    else
+                    {
+                        var list = cellIdToPatIndex[cellI];
+                        list.Add(i);
+                        cellIdToPatIndex[cellI] = list;
+                    }
+
                     //Write and reset particle data
                     p.rho = 0.0f;
                     p.rho_near = 0.0f;
@@ -583,42 +605,86 @@ namespace Zomb2DPhysics
 
                 #region Calculate Density
                 //Calculate Density
+                var _waterPatsWrite = waterPatsWrite;//For access in LoopWaterPatsIn()
+
                 for (int i = 0; i < WaterPhyGlobals.patCount; i++)
                 {
                     var p = waterPatsWrite[i];
                     float density = 0.0f;
                     float density_near = 0.0f;
 
-                    for (short ii = 0; ii < WaterPhyGlobals.patCount; ii++)
-                    {
-                        var n = waterPatsWrite[ii];
+                    cellI.x = (int)(p.pos.x / WaterPhyGlobals.gridCellSize);
+                    cellI.y = (int)(p.pos.y / WaterPhyGlobals.gridCellSize);
 
-                        float dist = (p.pos - n.pos).sqrMagnitude;//Sqr distance can be used for distance checks, we only perform sqrt if this particle is close
+                    if (cellIdToPatIndex.TryGetValue(cellI, out var nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.x++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.y--; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.x--; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.x--; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.y++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.y++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.x++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
+                    cellI.x++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
 
-                        if (dist < WaterSimConfig.R_SQR)//We probably wanna use some fast structure to avoid log(n) performance, maybe a grid?
-                        {
-                            //Self will be included in neighbours, feels wrong. But it seems to also be the case in the paper
-                            float norDis = 1 - (float)Math.Sqrt(dist) / WaterSimConfig.R;
-                            float norDisSquare2 = norDis * norDis;
-                            float norDisSquare3 = norDis * norDis * norDis;
-                            p.rho += norDisSquare2;
-                            p.rho_near += norDisSquare3;
-                            n.rho += norDisSquare2;
-                            n.rho_near += norDisSquare3;
-                            density += norDisSquare2;
-                            density_near += norDisSquare3;
-
-                            //Store particle neighbours for later use
-                            p.neighbours.Add(ii);
-
-                            waterPatsWrite[ii] = n;
-                        }
-                    }
+                    //for (short ii = 0; ii < WaterPhyGlobals.patCount; ii++)
+                    //{
+                    //    var n = waterPatsWrite[ii];
+                    //
+                    //    float dist = (p.pos - n.pos).sqrMagnitude;//Sqr distance can be used for distance checks, we only perform sqrt if this particle is close
+                    //
+                    //    if (dist < WaterSimConfig.R_SQR)//We probably wanna use some fast structure to avoid log(n) performance, maybe a grid?
+                    //    {
+                    //        //Self will be included in neighbours, feels wrong. But it seems to also be the case in the paper
+                    //        float norDis = 1 - (float)Math.Sqrt(dist) / WaterSimConfig.R;
+                    //        float norDisSquare2 = norDis * norDis;
+                    //        float norDisSquare3 = norDis * norDis * norDis;
+                    //        p.rho += norDisSquare2;
+                    //        p.rho_near += norDisSquare3;
+                    //        n.rho += norDisSquare2;
+                    //        n.rho_near += norDisSquare3;
+                    //        density += norDisSquare2;
+                    //        density_near += norDisSquare3;
+                    //
+                    //        //Store particle neighbours for later use
+                    //        p.neighbours.Add(ii);
+                    //
+                    //        waterPatsWrite[ii] = n;
+                    //    }
+                    //}
 
                     p.rho += density;//density and density_near may not be needed, looks almost the same without it
                     p.rho_near += density_near;
 
                     waterPatsWrite[i] = p;
+
+                    void LoopWaterPatsIn()
+                    {
+                        foreach (short ii in nearPatsToLoop)
+                        {
+                            var n = _waterPatsWrite[ii];
+
+                            float dist = (p.pos - n.pos).sqrMagnitude;//Sqr distance can be used for distance checks, we only perform sqrt if this particle is close
+
+                            if (dist < WaterSimConfig.R_SQR)//We probably wanna use some fast structure to avoid log(n) performance, maybe a grid?
+                            {
+                                //Self will be included in neighbours, feels wrong. But it seems to also be the case in the paper
+                                float norDis = 1 - (float)Math.Sqrt(dist) / WaterSimConfig.R;
+                                float norDisSquare2 = norDis * norDis;
+                                float norDisSquare3 = norDis * norDis * norDis;
+                                p.rho += norDisSquare2;
+                                p.rho_near += norDisSquare3;
+                                n.rho += norDisSquare2;
+                                n.rho_near += norDisSquare3;
+                                density += norDisSquare2;
+                                density_near += norDisSquare3;
+
+                                //Store particle neighbours for later use
+                                p.neighbours.Add(ii);
+
+                                _waterPatsWrite[ii] = n;
+                            }
+                        }
+                    }
                 }
                 #endregion Calculate Density
 
