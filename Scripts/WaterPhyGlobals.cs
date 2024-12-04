@@ -23,19 +23,21 @@ namespace Zomb2DPhysics
     {
         public static readonly Vector2 Gravity = new(0.0f, -0.005f);//Gravity force
 
-        public const float TS = 50.0f; //Timestep, Time.FixedTimestep * TS == 1.0f
-        public const float SPACING = 1.0f; //The target distance between each particle
-        public const float K = SPACING / 1000.0f; //Pressure factor
-        public const float K_NEAR = K * 20.0f; //Pressure factor when particels are compressed
+        public const float TS = 50.0f;//Timestep, Time.FixedTimestep * TS == 1.0f
+        public const float SPACING = 1.0f;//The target distance between each particle
+        public const float K = SPACING / 1000.0f;//Pressure factor
+        public const float K_NEAR = K * 20.0f;//Pressure factor when particels are compressed
         public const float REST_DENSITY = 3.0f;
         public const float R = SPACING * 1.25f;//If the distance between two particles is less than R, they are neighbours
         public const float R_SQR = R * R;//Square of R
-        public const float SIGMA = 0.2f;  //Viscosity factor
-        public const float MAX_VEL = 0.35f; //The maximum velocity a particle can have
+        public const float SIGMA = 0.2f;//Viscosity factor
+        public const float MAX_VEL = 0.35f;//The maximum velocity a particle can have
 
 #if !FLUID_NORBBUOYANCY
-        public const float WALL_BUOYANCY = 200.0f;//How much force each particle can add to waterColliders that has a rigidbody (Very rough buoyancy)
+        public const float WALL_BUOYANCY = 400.0f;//How much force each particle can add to waterColliders that has a rigidbody
+        public static readonly Vector2 WALL_GRAVITYPUSHFORCE = new(0.0f, 100.0f);//How much upwards force each particle can add to waterColliders that has a rigidbody
 #endif
+        //Below is unused, see line ~498 in WaterPhy.cs.WaterPatTick_work
         public const float WALL_BOUNCENESS = 0.03f;//How much a particle "bounce" on walls
         public const float WALL_MINBOUNCEVEL = 0.1f;//The minimum velocity a particle can have when it bounce
     }

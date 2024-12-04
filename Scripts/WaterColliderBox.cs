@@ -136,7 +136,7 @@ namespace Zomb2DPhysics
 
 
                 DrawPropertiesExcluding(serializedObject, hiddenFields);
-                EditorGUILayout.HelpBox("UpdateWaterColliderLocation() should be called after changing the" +
+                EditorGUILayout.HelpBox("UpdateWaterColliderLocation() should be called after/if changing the" +
                     " waterCollider transform at runtime by script", MessageType.Info);
 
                 //Apply changes

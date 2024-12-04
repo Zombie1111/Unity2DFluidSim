@@ -15,15 +15,19 @@ namespace Zomb2DPhysics
 {
     public class WaterPhy : MonoBehaviour
     {
+        #region Main Tick+Awake
         [Header("Water Rendering Config")]
+        [Tooltip("The camera that will be rendering the water")]
         [SerializeField] private WaterRenderingPost waterCamera = null;
         [Tooltip("Only the water should have this layer and only the waterCamera should render it")][SerializeField] private int waterLayer = 4;
-        [SerializeField] private Mesh wPat_mesh;
-        [SerializeField] private Material wPat_mat;
+        [Tooltip("The mesh used to render the water")] [SerializeField] private Mesh wPat_mesh;
+        [Tooltip("The material the mesh rendering the water should use")] [SerializeField] private Material wPat_mat;
 
         [Space()]
         [Header("Water Spawn Config")]
+        [Tooltip("The water particels will spawn between waterPatStartTrans and waterPatEndTrans. Stacked on top of each other in waterPatStartTrans up axis")]
         [SerializeField] private Transform waterPatStartTrans = null;
+        [Tooltip("The water particels will spawn between waterPatStartTrans and waterPatEndTrans")]
         [SerializeField] private Transform waterPatEndTrans = null;
 #if !FLUID_NORBBUOYANCY
         private Rigidbody2D[] waterColsRb = null;
@@ -65,7 +69,7 @@ namespace Zomb2DPhysics
 
         private void FixedUpdate()
         {
-            TickWaterParticelsEnd();
+            TickWaterParticelsEnd(Time.deltaTime);
             TickWaterParticelsStart(Time.deltaTime);
         }
 
@@ -73,7 +77,9 @@ namespace Zomb2DPhysics
         {
             TickRenderWaterPats();
         }
+        #endregion Main Tick+Awake
 
+        #region Set Particels
         private void SetupWaterPats()
         {
             //Setup job
@@ -90,14 +96,20 @@ namespace Zomb2DPhysics
 #endif
 
             //Create pat trans
-            CreateWaterPats();
+            CreateOrResetWaterParticels();
         }
 
-        private void CreateWaterPats()
+        private bool patsHasBeenCreated = false;
+
+        /// <summary>
+        /// Call to create water particels or reset them if they are already created
+        /// </summary>
+        public void CreateOrResetWaterParticels()
         {
             List<WaterPat> newWPats = new();
             Vector2 spawnStartPos = (Vector2)waterPatStartTrans.position;
             Vector2 towardsEndStep = (Vector2)waterPatEndTrans.position - spawnStartPos;
+            Vector2 spawnUpDir = (Vector2)waterPatStartTrans.up;
             float patSize = WaterPhyGlobals.waterRadius * 2.0f;
             float endDis = towardsEndStep.magnitude;
             towardsEndStep = towardsEndStep.normalized * patSize;
@@ -111,6 +123,8 @@ namespace Zomb2DPhysics
             }
 
             //Randomize particle order
+            if (patsHasBeenCreated == true) return;
+
             int i = 0;
             foreach (var wPat in newWPats.Shuffle())
             {
@@ -118,9 +132,11 @@ namespace Zomb2DPhysics
                 i++;
             }
 
+            patsHasBeenCreated = true;
+
             void SpawnRow(int rowI)
             {
-                Vector2 nowPos = spawnStartPos + (patSize * rowI * Vector2.up);
+                Vector2 nowPos = spawnStartPos + (patSize * rowI * spawnUpDir);
                 float nowDis = 0.0f;
 
                 while (nowDis < endDis && spawnI < WaterPhyGlobals.patCount)
@@ -136,15 +152,16 @@ namespace Zomb2DPhysics
             {
                 var wPat = wpt_job.waterPatsWrite[spawnI];
                 wPat.pos = pos;
-                wPat.vel = vel;
-                newWPats.Add(wPat);//Random pat order
-                //wpt_job.waterPatsWrite[spawnI] = wPat;
+                wPat.vel = vel;//Wont do anything I think since pat vel is set to gravity
+
+                if (patsHasBeenCreated == false) newWPats.Add(wPat);//Random pat order
+                else wpt_job.waterPatsWrite[spawnI] = wPat;
             }
         }
 
         private void Dealloate()
         {
-            TickWaterParticelsEnd();//Make sure job aint running
+            TickWaterParticelsEnd(Time.deltaTime);//Make sure job aint running
 
             if (wpt_job.waterPatsWrite.IsCreated == true) wpt_job.waterPatsWrite.Dispose();
             if (wpt_job.waterCols.IsCreated == true) wpt_job.waterCols.Dispose();
@@ -169,10 +186,12 @@ namespace Zomb2DPhysics
             public bool isActive;
 
 #if !FLUID_NORBBUOYANCY
+            public Vector2 vel;
             public Vector2 totalForcePos;
             public int forceCount;
 #endif
         }
+        #endregion Set Particels
 
         #region Handle Water Colliders
 
@@ -278,7 +297,7 @@ namespace Zomb2DPhysics
             wpt_handle = wpt_job.Schedule();
         }
 
-        private void TickWaterParticelsEnd()
+        private void TickWaterParticelsEnd(float deltaTime)
         {
             if (waterPatsIsTicking == false) return;
             waterPatsIsTicking = false;
@@ -291,7 +310,7 @@ namespace Zomb2DPhysics
 
             //Update water colliders
 #if !FLUID_NORBBUOYANCY
-            UpdateWaterCollidersRigidbodies();
+            UpdateWaterCollidersRigidbodies(deltaTime);
 #endif
             DoAddOrRemoveWaterColliders();
         }
@@ -300,16 +319,26 @@ namespace Zomb2DPhysics
         /// <summary>
         /// Updates rigidbodies buoyancy (Only exists if FLUID_NORBBUOYANCY is not defined)
         /// </summary>
-        private void UpdateWaterCollidersRigidbodies()
+        private void UpdateWaterCollidersRigidbodies(float deltaTime)
         {
             for (int i = 0; i < WaterPhyGlobals.maxWaterColliders; i++)
             {
                 if (waterColsRb[i] == null) continue;
+
                 var wCol = wpt_job.waterCols[i];
-                if (wCol.forceCount == 0 || wCol.isActive == false) continue;
+                if (wCol.isActive == false) continue;
+
+                Vector2 vel = waterColsRb[i].velocity;
+                wCol.vel = vel;
+                wpt_job.waterCols[i] = wCol;
+
+                if (wCol.forceCount == 0) continue;
 
                 Vector2 forcePos = wCol.totalForcePos / wCol.forceCount;
-                waterColsRb[i].AddForceAtPosition(WaterSimConfig.WALL_BUOYANCY * wCol.forceCount * (waterColsRb[i].position - forcePos).normalized, forcePos, ForceMode2D.Force);
+
+                waterColsRb[i].AddForceAtPosition(WaterSimConfig.WALL_GRAVITYPUSHFORCE, forcePos, ForceMode2D.Force);
+                waterColsRb[i].AddForce(WaterSimConfig.WALL_BUOYANCY * wCol.forceCount//Seems to work better if BUOYANCY is added using AddForce
+                    * (waterColsRb[i].position - forcePos).normalized, ForceMode2D.Force);
             }
         }
 #endif
@@ -364,7 +393,6 @@ namespace Zomb2DPhysics
                 }
             }
 
-            rendParams.matProps.SetMatrix("_ObjectToWorld", Matrix4x4.Translate(new Vector3(0, 0, 0)));
             rendParams.matProps.SetBuffer("_waterPatPoss", possBuf);
             commandData[0].indexCountPerInstance = wPat_mesh.GetIndexCount(0);
             commandData[0].instanceCount = WaterPhyGlobals.patCount;
@@ -466,12 +494,20 @@ namespace Zomb2DPhysics
                                 self_pos += bestDir * ((float)Math.Sqrt(bestDisSQR) + WaterPhyGlobals.waterRadius);
 
                                 newVelDir = self_vel.normalized;
-                                //self_vel = (newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir)) * self_vel.magnitude;
-                                self_vel = ((newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir))//The bounce thing fixes particels stacking up next to walls
-                                    - (bestDir / Math.Max(self_vel.magnitude, WaterSimConfig.WALL_MINBOUNCEVEL) * WaterSimConfig.WALL_BOUNCENESS)) * self_vel.magnitude;
+
+                                float dotP = -Vector2.Dot(newVelDir, bestDir);
+                                if (dotP < 0.0f) dotP = 0.0f;
+                                self_vel = (newVelDir - (dotP * bestDir)) * self_vel.magnitude
+
+                                //self_vel = (((newVelDir - (dotP * bestDir))//The bounce thing fixes particels stacking up next to walls
+                                //    - (bestDir / Math.Max(self_vel.magnitude, WaterSimConfig.WALL_MINBOUNCEVEL) * WaterSimConfig.WALL_BOUNCENESS)) * self_vel.magnitude)
+#if !FLUID_NORBBUOYANCY
+                                + wCol.vel
+#endif
+                                    ;
 
 #if !FLUID_NORBBUOYANCY
-                                wCol.totalForcePos += self_pos;
+                                wCol.totalForcePos += self_pos - newVelDir;
                                 wCol.forceCount++;
                                 waterCols[ii] = wCol;
 #endif
@@ -481,12 +517,20 @@ namespace Zomb2DPhysics
                                 self_pos -= bestDir * (WaterPhyGlobals.waterRadius - (float)Math.Sqrt(bestDisSQR));
 
                                 newVelDir = self_vel.normalized;
-                                //self_vel = (newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir)) * self_vel.magnitude;
-                                self_vel = ((newVelDir - (Vector2.Dot(newVelDir, bestDir) * bestDir))//The bounce thing fixes particels stacking up next to walls
-                                    - (bestDir / Math.Max(self_vel.magnitude, WaterSimConfig.WALL_MINBOUNCEVEL) * WaterSimConfig.WALL_BOUNCENESS)) * self_vel.magnitude;
+
+                                float dotP = Vector2.Dot(newVelDir, bestDir);
+                                if (dotP < 0.0f) dotP = 0.0f;
+                                self_vel = (newVelDir - (dotP * bestDir)) * self_vel.magnitude
+
+                                //self_vel = (((newVelDir - (dotP * bestDir))//The bounce thing fixes particels stacking up next to walls
+                                //    - (bestDir / Math.Max(self_vel.magnitude, WaterSimConfig.WALL_MINBOUNCEVEL) * WaterSimConfig.WALL_BOUNCENESS)) * self_vel.magnitude)
+#if !FLUID_NORBBUOYANCY
+                                    + wCol.vel
+#endif
+                                    ;
 
 #if !FLUID_NORBBUOYANCY
-                                wCol.totalForcePos += self_pos;
+                                wCol.totalForcePos += self_pos - newVelDir;
                                 wCol.forceCount++;
                                 waterCols[ii] = wCol;
 #endif

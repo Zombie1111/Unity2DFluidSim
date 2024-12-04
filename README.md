@@ -10,14 +10,14 @@
 - [License](#license)
 
 ## Overview
-A fast 2D particle-based fluid simulation that does not use Unitys Rigidbodies or PhysX implementation, allowing the simulation to run entirely on a separate thread
+A fast 2D particle-based fluid simulation that does not rely on Unitys Rigidbodies or PhysX implementation, allowing the simulation to run entirely on a separate thread
 
 (Gif showing fluid sim here, add later)
 
 ## Key Features
 <ul>
 <li>2D fluid simulation and rendering</li>
-<li>Fluid interacts with 2D box shaped colliders</li>
+<li>Fluid interacts with 2D box shaped colliders and rigidbodies</li>
 <li>Simulation runs entirely on a Burst-compiled job</li>
 <li>Utilizes GPU instancing for fluid rendering</li>
 </ul>
@@ -47,7 +47,6 @@ The `_Demo/` folder contains pratical exampels
 
 ## Technical Details
 The fluid simulation is based on Smoothed Particle Hydrodynamics (SPH) described by Brandon Pelfrey https://web.archive.org/web/20090722233436/http://blog.brandonpelfrey.com/?p=303
-
 
 ## License
 Unity2DFluidSim © 2024 by David Westberg is licensed under CC BY 4.0 - See the `LICENSE` file for more details.

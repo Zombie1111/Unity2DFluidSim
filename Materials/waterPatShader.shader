@@ -31,19 +31,15 @@ Shader "Hidden/WaterPatShader"
                 float2 uv : TEXCOORD0;
             };
 
-            uniform float4x4 _ObjectToWorld;
             StructuredBuffer<float2> _waterPatPoss;
 
             v2f vert(appdata_base v, uint svInstanceID : SV_InstanceID)
             {
                 InitIndirectDrawArgs(0);
                 v2f o;
-                uint cmdID = GetCommandID(0);
                 uint instanceID = GetIndirectInstanceID(svInstanceID);
 
-                float4 wpos = mul(_ObjectToWorld, v.vertex + float4(_waterPatPoss[svInstanceID], 0, 0));
-                o.pos = mul(UNITY_MATRIX_VP, wpos);
-
+                o.pos = mul(UNITY_MATRIX_VP, v.vertex + float4(_waterPatPoss[svInstanceID], 0, 0));
                 o.uv = v.texcoord.xy;
 
                 //()) / X))    X is noise frequency
