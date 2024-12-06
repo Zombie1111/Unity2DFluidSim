@@ -34,14 +34,20 @@ namespace Zomb2DPhysics
         public WaterPhy.WaterCol ToWaterCol()
         {
             Vector2 forward = (Vector2)transform.right * colLenght;
-            Vector2 side = (Vector2)transform.up * colWidth;
+            float radius = colLenght + colWidth + WaterPhyGlobals.waterRadius;
+            Vector2 center = (Vector2)transform.position;
 
             return new()
             {
                 dirForwardLenght = forward,
-                dirSideLenght = side,
-                pos = (Vector2)transform.position - (forward * 0.5f),
-                isActive = true
+                dirSideLenght = (Vector2)transform.up * colWidth,
+                pos = center - (forward * 0.5f),
+                isActive = true,
+                sqrRadius = radius * radius,
+                center = center,
+#if !FLUID_NORBBUOYANCY
+                forceCount = rb != null ? 0 : -1,
+#endif
             };
         }
 

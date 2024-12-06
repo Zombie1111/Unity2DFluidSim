@@ -7,6 +7,8 @@ using UnityEngine.Jobs;
 using Unity.Jobs;
 using System.Linq;
 using System;
+using NUnit.Framework.Internal.Commands;
+
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -20,8 +22,8 @@ namespace Zomb2DPhysics
         [Tooltip("The camera that will be rendering the water")]
         [SerializeField] private WaterRenderingPost waterCamera = null;
         [Tooltip("Only the water should have this layer and only the waterCamera should render it")][SerializeField] private int waterLayer = 4;
-        [Tooltip("The mesh used to render the water")] [SerializeField] private Mesh wPat_mesh;
-        [Tooltip("The material the mesh rendering the water should use")] [SerializeField] private Material wPat_mat;
+        [Tooltip("The mesh used to render the water")][SerializeField] private Mesh wPat_mesh;
+        [Tooltip("The material the mesh rendering the water should use")][SerializeField] private Material wPat_mat;
 
         [Space()]
         [Header("Water Spawn Config")]
@@ -89,6 +91,7 @@ namespace Zomb2DPhysics
                 waterCols = new NativeArray<WaterCol>(WaterPhyGlobals.maxWaterColliders, Allocator.Persistent),
                 waterPatsWrite = new NativeArray<WaterPat>(WaterPhyGlobals.patCount, Allocator.Persistent),
                 waterPatPoss = new NativeArray<Vector2>(WaterPhyGlobals.patCount, Allocator.Persistent),
+                waterPatLowestMidHighestY = new NativeReference<Vector3>(Allocator.Persistent),
                 cellIdToPatIndex = new(WaterPhyGlobals.patCount / 2, Allocator.Persistent)
             };
 
@@ -168,6 +171,7 @@ namespace Zomb2DPhysics
             if (wpt_job.waterCols.IsCreated == true) wpt_job.waterCols.Dispose();
             if (wpt_job.waterPatPoss.IsCreated == true) wpt_job.waterPatPoss.Dispose();
             if (wpt_job.cellIdToPatIndex.IsCreated == true) wpt_job.cellIdToPatIndex.Dispose();
+            if (wpt_job.waterPatLowestMidHighestY.IsCreated == true) wpt_job.waterPatLowestMidHighestY.Dispose();
             if (commandBuf.IsValid() == true)
             {
                 commandBuf.Release();
@@ -186,6 +190,9 @@ namespace Zomb2DPhysics
             public Vector2 dirForwardLenght;
             public Vector2 dirSideLenght;
             public bool isActive;
+
+            public Vector2 center;
+            public float sqrRadius;
 
 #if !FLUID_NORBBUOYANCY
             public Vector2 vel;
@@ -246,10 +253,10 @@ namespace Zomb2DPhysics
 
                     waterCollider.wColIndex = emptyWaterColIndexs.FirstOrDefault();
                     emptyWaterColIndexs.Remove(waterCollider.wColIndex);
-                    wpt_job.waterCols[waterCollider.wColIndex] = waterCollider.ToWaterCol();
 #if !FLUID_NORBBUOYANCY
                     waterColsRb[waterCollider.wColIndex] = waterCollider.TryGetWaterColRb();
 #endif
+                    wpt_job.waterCols[waterCollider.wColIndex] = waterCollider.ToWaterCol();
                 }
                 else
                 {
@@ -299,6 +306,11 @@ namespace Zomb2DPhysics
             wpt_handle = wpt_job.Schedule();
         }
 
+        /// <summary>
+        /// x == lowest Y any water particle has, y == particels average Y, z == highest Y any water particle has
+        /// </summary>
+        public Vector3 waterPatLowestMidHighestY;
+
         private void TickWaterParticelsEnd(float deltaTime)
         {
             if (waterPatsIsTicking == false) return;
@@ -309,6 +321,7 @@ namespace Zomb2DPhysics
 
             //Update water pats rendering
             possBuf.SetData(wpt_job.waterPatPoss);
+            waterPatLowestMidHighestY = wpt_job.waterPatLowestMidHighestY.Value;
 
             //Update water colliders
 #if !FLUID_NORBBUOYANCY
@@ -325,22 +338,29 @@ namespace Zomb2DPhysics
         {
             for (int i = 0; i < WaterPhyGlobals.maxWaterColliders; i++)
             {
+                //Get if waterCol with rb
                 if (waterColsRb[i] == null) continue;
 
                 var wCol = wpt_job.waterCols[i];
                 if (wCol.isActive == false) continue;
+                if (wCol.forceCount == 0) goto SkipAddRbForce;
 
-                Vector2 vel = waterColsRb[i].velocity;
-                wCol.vel = vel;
-                wpt_job.waterCols[i] = wCol;
-
-                if (wCol.forceCount == 0) continue;
-
+                //Add force to rb
                 Vector2 forcePos = wCol.totalForcePos / wCol.forceCount;
 
                 waterColsRb[i].AddForceAtPosition(WaterSimConfig.WALL_GRAVITYPUSHFORCE, forcePos, ForceMode2D.Force);
                 waterColsRb[i].AddForce(WaterSimConfig.WALL_BUOYANCY * wCol.forceCount//Seems to work better if BUOYANCY is added using AddForce
                     * (waterColsRb[i].position - forcePos).normalized, ForceMode2D.Force);
+
+                //Reset waterCol rb
+                wCol.forceCount = 0;
+                wCol.totalForcePos = Vector2.zero;//We could set forceCount and totalForcePos in burst job however since 99% of all colliders wont have an rb checking for rb twice is not worth it
+
+            SkipAddRbForce:;//We wont need to reset forceCount or totalForcePos if forceCount was 0
+                Vector2 vel = waterColsRb[i].velocity;
+                wCol.vel = vel;
+                wpt_job.waterCols[i] = wCol;
+
             }
         }
 #endif
@@ -361,7 +381,7 @@ namespace Zomb2DPhysics
 
             rendParams = new RenderParams(wPat_mat)
             {
-                worldBounds = new Bounds(Vector3.zero, 10000 * Vector3.one), // use tighter bounds for better FOV culling
+                worldBounds = new Bounds(Vector3.zero, 100000 * Vector3.one),
                 matProps = new MaterialPropertyBlock(),
                 camera = waterCamera.waterCam,
                 layer = waterLayer
@@ -416,26 +436,20 @@ namespace Zomb2DPhysics
             public NativeArray<WaterPat> waterPatsWrite;
             public NativeArray<Vector2> waterPatPoss;
             public NativeHashMap<Vector2Int, FixedList128Bytes<short>> cellIdToPatIndex;//Change FixedList128Bytes to FixedList512Bytes if list too small
+            public NativeReference<Vector3> waterPatLowestMidHighestY;
 
             public void Execute()
             {
                 //The fluid simulation is based on Smoothed Particle Hydrodynamics (SPH) described by Brandon Pelfrey
                 //https://web.archive.org/web/20090722233436/http://blog.brandonpelfrey.com/?p=303
 
-#if !FLUID_NORBBUOYANCY
-                //Reset water colliders
-                for (int i = 0; i < WaterPhyGlobals.maxWaterColliders; i++)
-                {
-                    var wCol = waterCols[i];
-                    wCol.totalForcePos = Vector2.zero;
-                    wCol.forceCount = 0;
-                }
-#endif
-
                 //Get particle data
                 cellIdToPatIndex.Clear();
                 float self_speed;
                 Vector2Int cellI = new();
+                float patLowestY = float.MaxValue;
+                float patHighestY = float.MinValue;
+                float patTotalY = 0.0f;
 
                 for (short i = 0; i < WaterPhyGlobals.patCount; i++)
                 {
@@ -465,6 +479,7 @@ namespace Zomb2DPhysics
                         {
                             var wCol = waterCols[ii];
                             if (wCol.isActive == false) continue;
+                            if ((wCol.center - self_pos).sqrMagnitude > wCol.sqrRadius) continue;
 
                             //Reset ComputeSquare
                             bestIsInside = false;
@@ -512,9 +527,12 @@ namespace Zomb2DPhysics
                                     ;
 
 #if !FLUID_NORBBUOYANCY
-                                wCol.totalForcePos += self_pos - newVelDir;
-                                wCol.forceCount++;
-                                waterCols[ii] = wCol;
+                                if (wCol.forceCount > -1)//Its negative if wCol dont have rb, which is 99% of the time
+                                {
+                                    wCol.totalForcePos += self_pos - newVelDir;
+                                    wCol.forceCount++;
+                                    waterCols[ii] = wCol;
+                                }
 #endif
                             }
                             else if (bestDisSQR < WaterPhyGlobals.waterRadiusSQR)
@@ -597,11 +615,20 @@ namespace Zomb2DPhysics
                     p.force = WaterSimConfig.Gravity;
                     p.speed = self_speed;
                     p.pos = self_pos;
+
                     waterPatPoss[i] = self_pos;
                     waterPatsWrite[i] = p;
 
+                    //Get lowestMidHighest
+                    patTotalY += self_pos.y;
+                    if (self_pos.y < patLowestY) patLowestY = self_pos.y;
+                    if (self_pos.y > patHighestY) patHighestY = self_pos.y;
+
                     #endregion Update state
                 }
+
+                //Update lowestMidY
+                waterPatLowestMidHighestY.Value = new Vector3(patLowestY, patTotalY / WaterPhyGlobals.patCount, patHighestY);
 
                 #region Calculate Density
                 //Calculate Density
@@ -625,32 +652,6 @@ namespace Zomb2DPhysics
                     cellI.y++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
                     cellI.x++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
                     cellI.x++; if (cellIdToPatIndex.TryGetValue(cellI, out nearPatsToLoop) == true) LoopWaterPatsIn();
-
-                    //for (short ii = 0; ii < WaterPhyGlobals.patCount; ii++)
-                    //{
-                    //    var n = waterPatsWrite[ii];
-                    //
-                    //    float dist = (p.pos - n.pos).sqrMagnitude;//Sqr distance can be used for distance checks, we only perform sqrt if this particle is close
-                    //
-                    //    if (dist < WaterSimConfig.R_SQR)//We probably wanna use some fast structure to avoid log(n) performance, maybe a grid?
-                    //    {
-                    //        //Self will be included in neighbours, feels wrong. But it seems to also be the case in the paper
-                    //        float norDis = 1 - (float)Math.Sqrt(dist) / WaterSimConfig.R;
-                    //        float norDisSquare2 = norDis * norDis;
-                    //        float norDisSquare3 = norDis * norDis * norDis;
-                    //        p.rho += norDisSquare2;
-                    //        p.rho_near += norDisSquare3;
-                    //        n.rho += norDisSquare2;
-                    //        n.rho_near += norDisSquare3;
-                    //        density += norDisSquare2;
-                    //        density_near += norDisSquare3;
-                    //
-                    //        //Store particle neighbours for later use
-                    //        p.neighbours.Add(ii);
-                    //
-                    //        waterPatsWrite[ii] = n;
-                    //    }
-                    //}
 
                     p.rho += density;//density and density_near may not be needed, looks almost the same without it
                     p.rho_near += density_near;
@@ -712,7 +713,7 @@ namespace Zomb2DPhysics
                         var n = waterPatsWrite[p.neighbours[ii]];
                         float norDis = 1 - (p.pos - n.pos).magnitude / WaterSimConfig.R;
                         Vector2 pressVec = ((p.press + n.press) * norDis * norDis + (p.press_near + n.press_near) * norDis * norDis * norDis) * (n.pos - p.pos).normalized;
-                        
+
                         n.force += pressVec;
                         pressForce += pressVec;
                         waterPatsWrite[p.neighbours[ii]] = n;
@@ -754,6 +755,24 @@ namespace Zomb2DPhysics
         }
 
         #endregion Handle Water Particels
+
+#if UNITY_EDITOR
+        //debug stopwatch
+        private System.Diagnostics.Stopwatch stopwatch = new();
+
+        public void Debug_toggleTimer(string note = "")
+        {
+            if (stopwatch.IsRunning == false)
+            {
+                stopwatch.Restart();
+            }
+            else
+            {
+                stopwatch.Stop();
+                Debug.Log(note + " time: " + stopwatch.Elapsed.TotalMilliseconds + "ms");
+            }
+        }
+#endif
     }
 }
 
