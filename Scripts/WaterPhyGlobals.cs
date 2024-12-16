@@ -15,7 +15,7 @@ namespace Zomb2DPhysics
     {
         public const float waterRadius = 0.4f;//The radius of each waterParticel
         public const float waterRadiusSQR = waterRadius * waterRadius;//Square of waterRadius
-        public const int maxWaterColliders = 100;//Maximum number of active water colliders
+        public const int maxWaterColliders = 110;//Maximum number of active water colliders
         public const int patCount = 1000;//Number of water particels
         public const float gridCellSize = 2.51f;//Size of cells in grid structure used to find neighbouring particle, should equal R * 2.0f + small margin
     }
@@ -35,12 +35,14 @@ namespace Zomb2DPhysics
         public const float MAX_VEL = 0.35f;//The maximum velocity a particle can have
 
 #if !FLUID_NORBBUOYANCY
-        public const float WALL_BUOYANCY = 400.0f;//How much force each particle can add to waterColliders that has a rigidbody
-        public static readonly Vector2 WALL_GRAVITYPUSHFORCE = new(0.0f, 100.0f);//How much upwards force each particle can add to waterColliders that has a rigidbody
+        public const float WALL_BUOYANCY = 100.0f;//How much force each particle can add to waterColliders that has a rigidbody
+        public static readonly Vector2 WALL_GRAVITYPUSHFORCE = new(0.0f, 25.0f);//How much upwards force each particle can add to waterColliders that has a rigidbody
+        //Damping angular velocity fucks up rb flowing with water for some reason. Have not been able to come up with a fix, for now I just let the rb roll on the water
+        //public const float WALL_ANGULARDAMPING = 0.03f;//How much the water damps the angular velocity of a waterColliders that has a rigidbody
 #endif
-        //Below is unused, see line ~498 in WaterPhy.cs.WaterPatTick_work
-        public const float WALL_BOUNCENESS = 0.03f;//How much a particle "bounce" on walls
-        public const float WALL_MINBOUNCEVEL = 0.1f;//The minimum velocity a particle can have when it bounce
+        ////Below is unused, see line ~498 in WaterPhy.cs.WaterPatTick_work
+        //public const float WALL_BOUNCENESS = 0.03f;//How much a particle "bounce" on walls
+        //public const float WALL_MINBOUNCEVEL = 0.1f;//The minimum velocity a particle can have when it bounce
     }
 
     public static class EnumerableExtensions
@@ -72,4 +74,3 @@ namespace Zomb2DPhysics
         }
     }
 }
-

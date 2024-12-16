@@ -56,7 +56,8 @@ Shader "Hidden/WaterPatShader"
             float4 frag(v2f i) : SV_Target
             {
                 //Sample the albedo texture
-                return float4(0.0, 0.0, 1.0, tex2D(_MainTex, i.uv).a) + i.color;
+                return float4(0.0, 0.0, 1.0, tex2D(_MainTex, i.uv).a) + i.color
+                * 1.0;//Water brightness
             }
             ENDCG
         }

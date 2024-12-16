@@ -46,24 +46,24 @@ namespace Zomb2DPhysics
                 sqrRadius = radius * radius,
                 center = center,
 #if !FLUID_NORBBUOYANCY
-                forceCount = rb != null ? 0 : -1,
+                forceCount = rbBoxCol != null ? 0 : -1,
 #endif
             };
         }
 
 #if !FLUID_NORBBUOYANCY
-        Rigidbody2D rb = null;
+        WaterColliderBoxRb rbBoxCol = null;
 
         /// <summary>
         /// Returns a rigidbody associated with this waterCollider, null if no valid rigidbody found (Only exists if FLUID_NORBBUOYANCY aint defiend)
         /// </summary>
-        public Rigidbody2D TryGetWaterColRb()
+        public WaterColliderBoxRb TryGetWaterColRb()
         {
-            if (rb != null) return rb;
-            if (TryGetComponent(out rb) == false) return null;
+            if (rbBoxCol != null) return rbBoxCol;
+            if (TryGetComponent(out Rigidbody2D _) == false) return null;
 
-            gameObject.AddComponent<WaterColliderBoxRb>();
-            return rb;
+            rbBoxCol = gameObject.AddComponent<WaterColliderBoxRb>();
+            return rbBoxCol;
         }
 #endif
 
@@ -152,4 +152,3 @@ namespace Zomb2DPhysics
 #endif
     }
 }
-

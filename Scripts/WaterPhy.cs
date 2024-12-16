@@ -32,7 +32,7 @@ namespace Zomb2DPhysics
         [Tooltip("The water particels will spawn between waterPatStartTrans and waterPatEndTrans")]
         [SerializeField] private Transform waterPatEndTrans = null;
 #if !FLUID_NORBBUOYANCY
-        private Rigidbody2D[] waterColsRb = null;
+        private WaterColliderBoxRb[] waterColsRb = null;
 #endif
         private WaterPatTick_work wpt_job;
         private JobHandle wpt_handle;
@@ -96,7 +96,7 @@ namespace Zomb2DPhysics
             };
 
 #if !FLUID_NORBBUOYANCY
-            waterColsRb = new Rigidbody2D[WaterPhyGlobals.maxWaterColliders];
+            waterColsRb = new WaterColliderBoxRb[WaterPhyGlobals.maxWaterColliders];
 #endif
 
             //Create pat trans
@@ -342,23 +342,32 @@ namespace Zomb2DPhysics
                 if (waterColsRb[i] == null) continue;
 
                 var wCol = wpt_job.waterCols[i];
-                if (wCol.isActive == false) continue;
-                if (wCol.forceCount == 0) goto SkipAddRbForce;
+                if (wCol.isActive == false)
+                {
+                    waterColsRb[i].waterPatCountTouching = 0;
+                    continue;
+                }
 
+                Rigidbody2D rb = waterColsRb[i].rb;
+                waterColsRb[i].waterPatCountTouching = wCol.forceCount;
+                if (wCol.forceCount <= 0) goto SkipAddRbForce;
+                
                 //Add force to rb
                 Vector2 forcePos = wCol.totalForcePos / wCol.forceCount;
 
-                waterColsRb[i].AddForceAtPosition(WaterSimConfig.WALL_GRAVITYPUSHFORCE, forcePos, ForceMode2D.Force);
-                waterColsRb[i].AddForce(WaterSimConfig.WALL_BUOYANCY * wCol.forceCount//Seems to work better if BUOYANCY is added using AddForce
-                    * (waterColsRb[i].position - forcePos).normalized, ForceMode2D.Force);
+                //waterColsRb[i].AddForceAtPosition((WaterSimConfig.WALL_GRAVITYPUSHFORCE * wCol.forceCount)
+                //    + (WaterSimConfig.WALL_BUOYANCY * wCol.forceCount * (waterColsRb[i].position - forcePos).normalized), forcePos, ForceMode2D.Force);
+                rb.AddForceAtPosition(WaterSimConfig.WALL_GRAVITYPUSHFORCE * wCol.forceCount, forcePos, ForceMode2D.Force);
+                rb.AddForce(WaterSimConfig.WALL_BUOYANCY * wCol.forceCount//Seems to work better if BUOYANCY is added using AddForce
+                    * (rb.position - forcePos).normalized, ForceMode2D.Force);
+                //rb.angularVelocity -= rb.angularVelocity * WaterSimConfig.WALL_ANGULARDAMPING * deltaTime * wCol.forceCount;
 
                 //Reset waterCol rb
                 wCol.forceCount = 0;
                 wCol.totalForcePos = Vector2.zero;//We could set forceCount and totalForcePos in burst job however since 99% of all colliders wont have an rb checking for rb twice is not worth it
 
             SkipAddRbForce:;//We wont need to reset forceCount or totalForcePos if forceCount was 0
-                Vector2 vel = waterColsRb[i].velocity;
-                wCol.vel = vel;
+                wCol.vel = rb.velocity;
                 wpt_job.waterCols[i] = wCol;
 
             }
@@ -480,6 +489,7 @@ namespace Zomb2DPhysics
                             var wCol = waterCols[ii];
                             if (wCol.isActive == false) continue;
                             if ((wCol.center - self_pos).sqrMagnitude > wCol.sqrRadius) continue;
+                            //if (wCol.forceCount > -1 && self_pos.y > wCol.center.y) continue;
 
                             //Reset ComputeSquare
                             bestIsInside = false;
@@ -512,11 +522,12 @@ namespace Zomb2DPhysics
                             if (bestIsInside == true)
                             {
                                 self_pos += bestDir * ((float)Math.Sqrt(bestDisSQR) + WaterPhyGlobals.waterRadius);
+                                //if (wCol.forceCount > -1) self_prevPos = self_pos;
 
                                 newVelDir = self_vel.normalized;
 
                                 float dotP = -Vector2.Dot(newVelDir, bestDir);
-                                if (dotP < 0.0f) dotP = 0.0f;
+                                //if (dotP < 0.0f) dotP = 0.0f;
                                 self_vel = (newVelDir - (dotP * bestDir)) * self_vel.magnitude
 
                                 //self_vel = (((newVelDir - (dotP * bestDir))//The bounce thing fixes particels stacking up next to walls
@@ -527,9 +538,10 @@ namespace Zomb2DPhysics
                                     ;
 
 #if !FLUID_NORBBUOYANCY
-                                if (wCol.forceCount > -1)//Its negative if wCol dont have rb, which is 99% of the time
+                                if (wCol.forceCount > -1 && self_pos.y < wCol.center.y)//Its negative if wCol dont have rb, which is 99% of the time
                                 {
-                                    wCol.totalForcePos += self_pos - newVelDir;
+                                    //wCol.totalForcePos += self_pos - newVelDir;
+                                    wCol.totalForcePos += self_pos - p.vel - newVelDir;
                                     wCol.forceCount++;
                                     waterCols[ii] = wCol;
                                 }
@@ -538,11 +550,12 @@ namespace Zomb2DPhysics
                             else if (bestDisSQR < WaterPhyGlobals.waterRadiusSQR)
                             {
                                 self_pos -= bestDir * (WaterPhyGlobals.waterRadius - (float)Math.Sqrt(bestDisSQR));
+                                //if (wCol.forceCount > -1) self_prevPos = self_pos;
 
                                 newVelDir = self_vel.normalized;
 
                                 float dotP = Vector2.Dot(newVelDir, bestDir);
-                                if (dotP < 0.0f) dotP = 0.0f;
+                                //if (dotP < 0.0f) dotP = 0.0f;
                                 self_vel = (newVelDir - (dotP * bestDir)) * self_vel.magnitude
 
                                 //self_vel = (((newVelDir - (dotP * bestDir))//The bounce thing fixes particels stacking up next to walls
@@ -553,9 +566,13 @@ namespace Zomb2DPhysics
                                     ;
 
 #if !FLUID_NORBBUOYANCY
-                                wCol.totalForcePos += self_pos - newVelDir;
-                                wCol.forceCount++;
-                                waterCols[ii] = wCol;
+                                if (wCol.forceCount > -1 && self_pos.y < wCol.center.y)//Its negative if wCol dont have rb, which is 99% of the time
+                                {
+                                    //wCol.totalForcePos += self_pos - newVelDir;//I have no idea why offseting the position by p.vel helps
+                                    wCol.totalForcePos += self_pos - p.vel - newVelDir;
+                                    wCol.forceCount++;
+                                    waterCols[ii] = wCol;
+                                }
 #endif
                             }
                         }
@@ -570,7 +587,7 @@ namespace Zomb2DPhysics
                             {
                                 bestDisSQR = closeDisSQR;
                                 bestDir = closeDirLenght.normalized;
-                                bestIsInside = Vector3.Dot(lineNormal, bestDir) > 0.01f;
+                                bestIsInside = Vector3.Dot(lineNormal, bestDir) > 0.2f;
                             }
                         }
                     }
@@ -596,13 +613,15 @@ namespace Zomb2DPhysics
                     {
                         List.Add(i);
                         cellIdToPatIndex.Add(cellI, List);
-
                     }
                     else
                     {
                         var list = cellIdToPatIndex[cellI];
-                        list.Add(i);
-                        cellIdToPatIndex[cellI] = list;
+                        if (List.Length < 63)
+                        {
+                            list.Add(i);
+                            cellIdToPatIndex[cellI] = list;
+                        }
                     }
 
                     //Write and reset particle data
@@ -639,6 +658,7 @@ namespace Zomb2DPhysics
                     var p = waterPatsWrite[i];
                     float density = 0.0f;
                     float density_near = 0.0f;
+                    int nCount = 0;
 
                     cellI.x = (int)(p.pos.x / WaterPhyGlobals.gridCellSize);
                     cellI.y = (int)(p.pos.y / WaterPhyGlobals.gridCellSize);
@@ -666,7 +686,7 @@ namespace Zomb2DPhysics
 
                             float dist = (p.pos - n.pos).sqrMagnitude;//Sqr distance can be used for distance checks, we only perform sqrt if this particle is close
 
-                            if (dist < WaterSimConfig.R_SQR)//We probably wanna use some fast structure to avoid log(n) performance, maybe a grid?
+                            if (dist < WaterSimConfig.R_SQR)
                             {
                                 //Self will be included in neighbours, feels wrong. But it seems to also be the case in the paper
                                 float norDis = 1 - (float)Math.Sqrt(dist) / WaterSimConfig.R;
@@ -680,8 +700,10 @@ namespace Zomb2DPhysics
                                 density_near += norDisSquare3;
 
                                 //Store particle neighbours for later use
-                                p.neighbours.Add(ii);
+                                if (nCount > 62) break;
 
+                                p.neighbours.Add(ii);
+                                nCount++;
                                 _waterPatsWrite[ii] = n;
                             }
                         }
@@ -775,4 +797,3 @@ namespace Zomb2DPhysics
 #endif
     }
 }
-

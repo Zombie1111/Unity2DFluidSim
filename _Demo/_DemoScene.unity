@@ -1903,13 +1903,21 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 387390717312436371, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
+      propertyPath: orthographic size
+      value: 50
+      objectReference: {fileID: 0}
+    - target: {fileID: 7736271777887495349, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
+      propertyPath: orthographic size
+      value: 50
+      objectReference: {fileID: 0}
     - target: {fileID: 7830586084026072390, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 481
+      value: 450.1
       objectReference: {fileID: 0}
     - target: {fileID: 7830586084026072390, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 417.9
+      value: 399.1
       objectReference: {fileID: 0}
     - target: {fileID: 7830586084026072390, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
       propertyPath: m_LocalPosition.z
@@ -1946,6 +1954,14 @@ PrefabInstance:
     - target: {fileID: 8029292210419785568, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
       propertyPath: m_Name
       value: 2DWaterSetup
+      objectReference: {fileID: 0}
+    - target: {fileID: 8385391063553850410, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 34
+      objectReference: {fileID: 0}
+    - target: {fileID: 8385391063553850410, guid: 151159cfa6bc5a3469504dff4274fc66, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -9.6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2855,7 +2871,7 @@ Rigidbody2D:
   m_UseAutoMass: 1
   m_Mass: 36
   m_LinearDrag: 0
-  m_AngularDrag: 0.05
+  m_AngularDrag: 0.1
   m_GravityScale: 1
   m_Material: {fileID: 0}
   m_IncludeLayers:

@@ -24,5 +24,3 @@ namespace Zomb2DPhysics
         }
     }
 }
-
-
