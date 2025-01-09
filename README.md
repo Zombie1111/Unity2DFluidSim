@@ -10,9 +10,9 @@
 - [License](#license)
 
 ## Overview
-A fast 2D particle-based fluid simulation that does not rely on Unitys Rigidbodies or PhysX implementation, allowing the simulation to run entirely on a separate thread
+A fast 2D particle-based fluid simulation that does not rely on Unitys Rigidbodies or PhysX implementation, allowing the simulation to run entirely on a separate thread.
 
-(Gif showing fluid sim here, add later)
+<img src="https://media.giphy.com/media/bz9tQJq9TKJoqrRhv3/giphy.gif" width="100%" height="100%"/>
 
 ## Key Features
 <ul>
