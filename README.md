@@ -40,6 +40,8 @@ A fast 2D particle-based fluid simulation that does not rely on Unitys Rigidbodi
   <li>Enter playmode and you should now have a 2D fluid simulation that can collide with the Quad</li>
 </ol>
 
+(The fluid simulation itself does not rely heavily on Unity, porting this to non Unity enviroments should therefore not require too much work)
+
 ## Documentation
 Most functions are documented and all parameters visible in the Unity inspector have tooltips
 
