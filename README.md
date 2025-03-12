@@ -12,6 +12,9 @@
 ## Overview
 A fast 2D particle-based fluid simulation that does not rely on Unitys Rigidbodies or PhysX implementation, allowing the simulation to run entirely on a separate thread.
 
+Used in my mobile game Flow Down:
+[Google Play](https://play.google.com/store/apps/details?id=com.DefaultCompany.FlowDownGame)
+
 <img src="https://media.giphy.com/media/bz9tQJq9TKJoqrRhv3/giphy.gif" width="100%" height="100%"/>
 
 ## Key Features
