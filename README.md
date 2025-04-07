@@ -1,5 +1,5 @@
 
-<h1 align="center">Unity 2D Fluid Simulation</h1>
+<h1>Unity 2D Fluid Simulation</h1>
 
 ## Table of Contents
 - [Overview](#overview)
